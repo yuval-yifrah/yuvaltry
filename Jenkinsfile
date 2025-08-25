@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = "my-app"
-        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly-repo"
+        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly"
         AWS_REGION = "us-east-1"
         BUILD_TAG = "${BUILD_NUMBER}"                   
         CONTAINER_NAME = "${IMAGE_NAME}-${BRANCH_NAME}-${BUILD_TAG}"
