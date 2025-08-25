@@ -3,11 +3,12 @@ pipeline {
 
     environment {
         IMAGE_NAME = "my-app"
-        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly"
+        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly-repo"
         AWS_REGION = "us-east-1"
-        BUILD_TAG = "${BUILD_NUMBER}"                   
-        CONTAINER_NAME = "${IMAGE_NAME}-${BRANCH_NAME}-${BUILD_TAG}"
-        PORT = "${5000 + BUILD_NUMBER}"                
+        BUILD_TAG = "candidate-${BUILD_NUMBER}"
+        CONTAINER_NAME = "${IMAGE_NAME}-prod"
+        PROD_HOST = "ec2-user@your-production-ec2"   // כתובת EC2 production
+        PROD_PORT = "5000"
     }
 
     stages {
@@ -19,10 +20,20 @@ pipeline {
             }
         }
 
+        stage('Test') {
+            steps {
+                script {
+                    // כאן תריצי את ה‑unit tests שלך
+                    sh "docker run --rm ${IMAGE_NAME}:${BUILD_TAG} pytest || exit 1"
+                }
+            }
+        }
+
         stage('Tag for ECR') {
             steps {
                 script {
                     sh "docker tag ${IMAGE_NAME}:${BUILD_TAG} ${ECR_REPO}:${BUILD_TAG}"
+                    sh "docker tag ${IMAGE_NAME}:${BUILD_TAG} ${ECR_REPO}:latest"
                 }
             }
         }
@@ -30,7 +41,7 @@ pipeline {
         stage('Login to ECR') {
             steps {
                 script {
-                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin 992382545251.dkr.ecr.${AWS_REGION}.amazonaws.com"
+                    sh "aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPO}"
                 }
             }
         }
@@ -39,26 +50,53 @@ pipeline {
             steps {
                 script {
                     sh "docker push ${ECR_REPO}:${BUILD_TAG}"
+                    sh "docker push ${ECR_REPO}:latest"
                 }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Deploy to Production EC2') {
             steps {
                 script {
-                    sh "docker rm -f ${CONTAINER_NAME} || true"
-
-                    sh "docker run -d --name ${CONTAINER_NAME} -p ${PORT}:5000 ${IMAGE_NAME}:${BUILD_TAG}"
+                    // העתקת Image והפעלת Container על ה-EC2
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${PROD_HOST} '
+                            docker pull ${ECR_REPO}:${BUILD_TAG} &&
+                            docker rm -f ${CONTAINER_NAME} || true &&
+                            docker run -d --name ${CONTAINER_NAME} -p ${PROD_PORT}:5000 ${ECR_REPO}:${BUILD_TAG}
+                        '
+                    """
                 }
             }
         }
 
-        stage('Verify Container') {
+        stage('Health Verification') {
             steps {
                 script {
-                    sh "docker ps | grep ${CONTAINER_NAME}"
+                    retry(3) {
+                        sh """
+                            ssh -o StrictHostKeyChecking=no ${PROD_HOST} '
+                                curl -f http://localhost:${PROD_PORT}/health
+                            '
+                        """
+                    }
                 }
             }
         }
     }
+
+    post {
+        failure {
+            script {
+                // Rollback פשוט במידה וה-health check נכשל
+                sh """
+                    ssh -o StrictHostKeyChecking=no ${PROD_HOST} '
+                        docker rm -f ${CONTAINER_NAME} || true
+                        docker run -d --name ${CONTAINER_NAME} -p ${PROD_PORT}:5000 ${ECR_REPO}:latest
+                    '
+                """
+            }
+        }
+    }
 }
+
