@@ -3,11 +3,11 @@ pipeline {
 
     environment {
         IMAGE_NAME = "my-app"
-        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly-repo"
+        ECR_REPO = "992382545251.dkr.ecr.us-east-1.amazonaws.com/yuvaly"
         AWS_REGION = "us-east-1"
         BUILD_TAG = "candidate-${BUILD_NUMBER}"
         CONTAINER_NAME = "${IMAGE_NAME}-prod"
-        PROD_HOST = "ec2-user@your-production-ec2"   // כתובת EC2 production
+        PROD_HOST = "ec2-user@52.87.183.251"
         PROD_PORT = "5000"
     }
 
@@ -23,7 +23,7 @@ pipeline {
         stage('Test') {
             steps {
                 script {
-                    // כאן תריצי את ה‑unit tests שלך
+                    
                     sh "docker run --rm ${IMAGE_NAME}:${BUILD_TAG} pytest || exit 1"
                 }
             }
@@ -58,7 +58,7 @@ pipeline {
         stage('Deploy to Production EC2') {
             steps {
                 script {
-                    // העתקת Image והפעלת Container על ה-EC2
+                
                     sh """
                         ssh -o StrictHostKeyChecking=no ${PROD_HOST} '
                             docker pull ${ECR_REPO}:${BUILD_TAG} &&
@@ -88,7 +88,7 @@ pipeline {
     post {
         failure {
             script {
-                // Rollback פשוט במידה וה-health check נכשל
+               
                 sh """
                     ssh -o StrictHostKeyChecking=no ${PROD_HOST} '
                         docker rm -f ${CONTAINER_NAME} || true
