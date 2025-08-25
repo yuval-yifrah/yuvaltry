@@ -55,7 +55,7 @@ pipeline {
             steps {
                 sh """
                     for i in {1..5}; do
-                      if curl -s http://localhost:${HOST_PORT}/health; then
+                      if curl -s http://localhost:${HOST_PORT}/; then
                         exit 0
                       fi
                       sleep 5
