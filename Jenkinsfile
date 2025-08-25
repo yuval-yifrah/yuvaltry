@@ -59,4 +59,11 @@ pipeline {
                         exit 0
                       fi
                       echo "Waiting for app..."
-
+                      sleep 3
+                    done
+                    echo "Health check failed" && exit 1
+                """
+            }
+        }
+    }
+}
