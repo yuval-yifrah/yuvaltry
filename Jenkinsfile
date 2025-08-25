@@ -7,7 +7,7 @@ pipeline {
         AWS_REGION     = "us-east-1"
         BUILD_TAG      = "${BUILD_NUMBER}"         
         CONTAINER_NAME = "my-app-main"            
-        HOST_PORT      = "3000"
+        HOST_PORT      = "5000"
     }
 
     stages {
