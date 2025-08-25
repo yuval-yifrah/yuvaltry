@@ -8,6 +8,7 @@ pipeline {
         BUILD_TAG      = "${BUILD_NUMBER}"
         CONTAINER_NAME = "my-app-main"
         HOST_PORT      = "5000"
+        APP_PORT       = "5000"  // הפורט שהאפליקציה שלך מאזינה עליו בתוך הקונטיינר
     }
 
     stages {
@@ -42,8 +43,16 @@ pipeline {
                 branch 'main'
             }
             steps {
-                sh "docker ps -q -f name=${CONTAINER_NAME} | grep -q . && docker stop ${CONTAINER_NAME} && docker rm ${CONTAINER_NAME} || true"
-                sh "docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:5000 ${ECR_REPO}:${BUILD_TAG}"
+                // עצור והסר קונטיינר קיים אם יש
+                sh """
+                    if docker ps -q -f name=${CONTAINER_NAME} | grep -q .; then
+                        docker stop ${CONTAINER_NAME}
+                        docker rm ${CONTAINER_NAME}
+                    fi
+                """
+                
+                // הרץ קונטיינר חדש
+                sh "docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:${APP_PORT} ${ECR_REPO}:${BUILD_TAG}"
             }
         }
 
@@ -53,17 +62,19 @@ pipeline {
             }
             steps {
                 sh """
-                    for i in {1..10}; do
-                      if curl -s http://localhost:${HOST_PORT}/; then
-                        echo "App is up"
-                        exit 0
-                      fi
-                      echo "Waiting for app..."
-                      sleep 3
+                    echo "Checking if the app is up..."
+                    for i in {1..12}; do
+                        if curl -s http://localhost:${HOST_PORT}/ > /dev/null; then
+                            echo "App is up!"
+                            exit 0
+                        fi
+                        sleep 5
+                        echo "Waiting for app to start... attempt \$i"
                     done
-                    echo "Health check failed" && exit 1
+                    echo "Health check failed after 1 minute" && exit 1
                 """
             }
         }
     }
 }
+
